@@ -1,39 +1,81 @@
 import requests
 import csv
 from bs4 import BeautifulSoup
+import urllib
 
-# name the output file
-filename = 'IT'
+queue = []
 
-# number of pages to scrape
-no_pages = 51
+# loads scraping targets from "filename".csv to the queue
+# the first row should be formatted as follows: 'url', 'pageno', 'filename'
+def loadFromFile(filename):
+    global queue
+    with open(filename + '.csv', encoding='utf-8-sig', newline='') as file:
+        reader = csv.reader(file, delimiter=',')
+        key = []
+        hasKey = False
+        for row in reader:
+            if hasKey is False:
+                key = row
+                hasKey = True
+                # print(key)
+                if key != ['url', 'pageno', 'filename']:
+                    return
+            else:
+                entry = dict(zip(key, row))
+                entry['pageno'] = int(entry['pageno'])
+                # print(entry)
+                queue.append(entry)
+    file.close()
+    return
 
-arr = []
+# replaces placeholder substring ('__pageno__') with the actual page number
+def getUrl(notUrl, pageNo):
+    url = notUrl.replace('__pageno__', str(pageNo))
+    return url
 
-def getData(pageNo):
+# fetches all elements of type specified in the HTML properties
+def fetchPage(url):
     headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0", "Accept-Encoding":"gzip, deflate", "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "DNT":"1","Connection":"close", "Upgrade-Insecure-Requests":"1"}
-
-    # replace page numbers in the URL with '+str(pageNo)+'
-    r = requests.get('https://www1.salary.com/Pharmaceuticals-Salaries.html?pageno='+str(pageNo)+'&view=compact', headers=headers)
+    r = requests.get(url, headers=headers)
     content = r.content
-    soup = BeautifulSoup(content)
-
-    names = []
+    soup = BeautifulSoup(content, features='html.parser')
+    elements = []
 
     # HTML properties
     for a in soup.findAll('a', attrs={'class':'font-semibold'}):
-        name = a.getText()
-        if name is not (None or 'View More'):
-            print(name)
-            names.append(name)
-    return names
+        element = a.getText()
+        if element is not None:
+            # print(element)
+            elements.append(element)
+    return elements
 
-for x in range(no_pages):
-    arr += getData(x)
+# writes data to "filename".csv
+def writeToFile(filename, data):
+    with open(filename + '.csv', 'a', newline='') as file:
+        writer = csv.writer(file)
+        for row in data:
+            writer.writerow([row])
+    return
 
-# print(arr)
+# scrapes the targeted site and outputs to the targeted file
+def scrapeSite(entry):
+    data = []
+    print('\nScraping ' + entry['url'].split('?')[0] + '\n')
+    for pageNo in range(entry['pageno']):
+        url = getUrl(entry['url'], pageNo + 1)
+        data += fetchPage(url)
+        print('Page ' + str(pageNo + 1) + ' of ' + str(entry['pageno']) + '.')
+    print('\n' + entry['url'].split('?')[0] + ' has been scraped.')
+    data.sort()
+    writeToFile(entry['filename'], data)
+    return
 
-with open(filename + '.csv', 'w', newline='') as file:
-    writer = csv.writer(file)
-    for role in arr:
-        writer.writerow([role,''])
+# scrapes the entire queue
+def scrape():
+    global queue
+    loadFromFile('input')
+    for entry in queue:
+        scrapeSite(entry)
+    return
+
+scrape()
