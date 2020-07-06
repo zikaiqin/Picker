@@ -1,2 +1,6 @@
-
+__pycache__/
+scraps/
+test/
+main.py
 *.csv
+.gitignore
