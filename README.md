@@ -1,3 +1,3 @@
 # Picker
 
-Picker is a scraper that works with Excel sheets.
+Casually scrape away from the warmth and comfort of your favorite spreadsheet software.
