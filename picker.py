@@ -29,11 +29,9 @@ class Picker:
             with open(filename, encoding = 'utf-8-sig', newline = '') as file:
                 reader = csv.reader(file, delimiter = ',')
                 key = []
-                firstRow = True
                 for row in reader:
-                    if firstRow is True:
+                    if not key:
                         key = row
-                        firstRow = False
                         if key != ['url', 'tags', 'filename', 'args']:
                             print(key)
                             raise Exception('invalid formatting of the document.')
@@ -61,7 +59,7 @@ class Picker:
         parser = Parser()
         try:
             elements = ast.literal_eval(rawTags)
-        except ValueError:
+        except:
             pass
         else:
             if type(elements) is not list:
@@ -71,6 +69,7 @@ class Picker:
                 parser.feed(element)
                 parser.close()
                 tags.append(parser.get())
+                parser = Parser()
             return tags
         parser.feed(rawTags)
         parser.close()
@@ -100,7 +99,13 @@ class Picker:
         elements = []
         if type(tags[0]) is not dict:
             for tag in tags:
-                elements.extend(self.findElements(tree, tag))
+                if not elements:
+                    elements = self.findElements(tree, tag)
+                else:
+                    temp = []
+                    for old, new in zip(elements, self.findElements(tree, tag)):
+                        temp.append([old[0], new[0]])
+                    elements = temp
         else:
             next_ = tags[1:]
             for element in tree.findAll(tags[0].get('tag'), attrs = tags[0].get('attrs')):
@@ -120,7 +125,7 @@ class Picker:
             src = tree.get('src')
             return [text, src]
         else:
-            return [text,'']
+            return [text]
 
     def scrape(self, entry):
         url = entry['url']
@@ -181,6 +186,8 @@ class Picker:
         self.writeFile(entry['filename'], data)
 
     def scrapeAll(self):
+        if not self.queue:
+            self.loadFile()
         for entry in self.queue:
             self.scrape(entry)
         self.queue.clear()
