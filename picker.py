@@ -16,30 +16,43 @@ class Parser(HTMLParser):
         return self.tags
 
 class Picker:
-    def __init__(self):
-        queue = []
+    def __init__(self, filename = 'input.csv'):
+        self.queue = []
+        self.ifname = filename
 
-    def loadFile(self, filename = 'input'):
-        with open(filename + '.csv', encoding = 'utf-8-sig', newline = '') as file:
-            reader = csv.reader(file, delimiter = ',')
-            key = []
-            firstRow = True
-            for row in reader:
-                if firstRow is True:
-                    key = row
-                    firstRow = False
-                    if key != ['url', 'tags', 'filename', 'args']:
-                        print('Error! Unknown formatting.')
-                        return
-                else:
-                    entry = dict(zip(key, row))
-                    entry['tags'] = self.parseTags(entry['tags'])
-                    entry['args'] = self.parseArgs(entry['args'])
-                    self.queue.append(entry)
-        file.close()
+    def loadFile(self, filename = None):
+        if filename is None:
+            filename = self.ifname
+        if not filename.endswith('.csv'):
+            filename += '.csv'
+        try:
+            with open(filename, encoding = 'utf-8-sig', newline = '') as file:
+                reader = csv.reader(file, delimiter = ',')
+                key = []
+                firstRow = True
+                for row in reader:
+                    if firstRow is True:
+                        key = row
+                        firstRow = False
+                        if key != ['url', 'tags', 'filename', 'args']:
+                            print(key)
+                            raise Exception('invalid formatting of the document.')
+                    else:
+                        entry = dict(zip(key, row))
+                        entry['tags'] = self.parseTags(entry['tags'])
+                        entry['args'] = self.parseArgs(entry['args'])
+                        self.queue.append(entry)
+        except Exception:
+            raise
+        except FileNotFoundError:
+            raise
+        else:
+            file.close()
 
     def writeFile(self, filename, data):
-        with open(filename + '.csv', 'a', newline = '') as file:
+        if not filename.endswith('.csv'):
+            filename += '.csv'
+        with open(filename, 'a', newline = '') as file:
             writer = csv.writer(file)
             writer.writerows(data)
         file.close()
@@ -116,23 +129,25 @@ class Picker:
         print('\nNow scraping ' + url.split('?')[0])
         if 'range' in args:
             if 'append' not in args or len(args['range']) > 2:
-                print('Error! Invalid arguments.')
+                print('Exception: Invalid arguments used.')
                 return
             if len(args['range']) == 2:
                 begin = args['range'][0]
                 end = args['range'][1] + 1
-                for index in range(begin, end):
-                    newUrl = url + args['append'].replace('^R', str(index))
-                    try:
-                        tree = self.fetchTree(newUrl)
-                    except Exception as e:
-                        print('Error! Status code ' + str(e) + ' for page ' + str(index) + '.')
-                        print(str(index - 1) + ' of ' + str(end - begin) + ' pages scraped.\n')
-                        break
-                    else:
-                        data += self.findElements(tree, entry['tags'])
-                        # print(newUrl)
-                print(str(end - begin) + ' of ' + str(end - begin) + ' pages scraped.\n')                    
+                try:
+                    for index in range(begin, end):
+                        newUrl = url + args['append'].replace('^R', str(index))
+                        try:
+                            tree = self.fetchTree(newUrl)
+                        except:
+                            raise
+                        else:
+                            data += self.findElements(tree, entry['tags'])
+                except Exception as e:
+                        print('Exception: ' + str(e) + ' for page ' + str(index) + '.')
+                        print(str(index - begin) + ' of ' + str(end - begin) + ' pages scraped.\n')
+                else:
+                    print(str(end - begin) + ' of ' + str(end - begin) + ' pages scraped.\n')
             else:
                 index = args['range'][0]
                 while True:
@@ -143,7 +158,6 @@ class Picker:
                         break
                     else:
                         data += self.findElements(tree, entry['tags'])
-                        # print(newUrl)
                         index += 1
                 print(str(index - 1) + ' pages scraped.\n')
         elif 'append' in args:
@@ -151,7 +165,7 @@ class Picker:
             try:
                 tree = self.fetchTree(url)
             except Exception as e:
-                print('Error! Status code ' + str(e) + '.')
+                print('Exception: Status code ' + str(e) + '.')
             else:
                 data += self.findElements(tree, entry['tags'])
                 print('Page scraped.\n')
@@ -159,7 +173,7 @@ class Picker:
             try:
                 tree = self.fetchTree(url)
             except Exception as e:
-                print('Error! Status code ' + str(e) + '.')
+                print('Exception: Status code ' + str(e) + '.')
             else:
                 data += self.findElements(tree, entry['tags'])
                 print('Page scraped.\n')
