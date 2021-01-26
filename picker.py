@@ -1,12 +1,12 @@
 from html.parser import HTMLParser
 from bs4 import BeautifulSoup
-import requests, csv, ast
+import requests
+import csv
+import ast
 
 class Parser(HTMLParser):
-    tags = []
-
     def __init__(self):
-        self.tags.clear()
+        self.tags = []
         super().__init__()
 
     def handle_starttag(self, tag, attrs):
@@ -16,7 +16,8 @@ class Parser(HTMLParser):
         return self.tags
 
 class Picker:
-    queue = []
+    def __init__(self):
+        queue = []
 
     def loadFile(self, filename = 'input'):
         with open(filename + '.csv', encoding = 'utf-8-sig', newline = '') as file:
@@ -45,6 +46,19 @@ class Picker:
 
     def parseTags(self, rawTags):
         parser = Parser()
+        try:
+            elements = ast.literal_eval(rawTags)
+        except ValueError:
+            pass
+        else:
+            if type(elements) is not list:
+                raise TypeError('string does not resolve to list.')
+            tags = []
+            for element in elements:
+                parser.feed(element)
+                parser.close()
+                tags.append(parser.get())
+            return tags
         parser.feed(rawTags)
         parser.close()
         tags = parser.get()
@@ -71,12 +85,16 @@ class Picker:
 
     def findElements(self, tree, tags):
         elements = []
-        next_ = tags[1:]
-        for element in tree.findAll(tags[0].get('tag'), attrs = tags[0].get('attrs')):
-            if next_:
-                elements.extend(self.findElements(element, next_))
-            else:
-                elements.append(self.handleElement(element))
+        if type(tags[0]) is not dict:
+            for tag in tags:
+                elements.extend(self.findElements(tree, tag))
+        else:
+            next_ = tags[1:]
+            for element in tree.findAll(tags[0].get('tag'), attrs = tags[0].get('attrs')):
+                if next_:
+                    elements.extend(self.findElements(element, next_))
+                else:
+                    elements.append(self.handleElement(element))
         return elements
 
     def handleElement(self, tree):
