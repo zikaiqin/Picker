@@ -1,5 +1,6 @@
 from html.parser import HTMLParser
 from bs4 import BeautifulSoup
+from openpyxl import Workbook
 import requests
 import csv
 import ast
@@ -23,6 +24,9 @@ class Picker:
     def loadFile(self, filename = None):
         if filename is None:
             filename = self.ifname
+        # TODO: read xlsx
+        if filename.endswith('.xlsx'):
+            pass
         if not filename.endswith('.csv'):
             filename += '.csv'
         try:
@@ -48,34 +52,53 @@ class Picker:
             file.close()
 
     def writeFile(self, filename, data):
+        # TODO: write to xlsx
+        if filename.endswith('.xlsx'):
+            pass
         if not filename.endswith('.csv'):
             filename += '.csv'
-        with open(filename, 'a', newline = '') as file:
+        with open(filename, 'a', encoding = 'utf-8', newline = '') as file:
             writer = csv.writer(file)
-            writer.writerows(data)
+            try:
+                writer.writerows(data)
+            except:
+                print()
         file.close()
 
+    #   Parses HTML tags using class Parser.
+    #   Returns list of tags. Individual tags are dicts, with keys 'tag' and 'attrs'.
     def parseTags(self, rawTags):
         parser = Parser()
         try:
-            elements = ast.literal_eval(rawTags)
+            rawTags = ast.literal_eval(rawTags)
         except:
             pass
         else:
-            if type(elements) is not list:
-                raise TypeError('string does not resolve to list.')
-            tags = []
-            for element in elements:
-                parser.feed(element)
-                parser.close()
-                tags.append(parser.get())
-                parser = Parser()
-            return tags
+            if type(rawTags) is dict:
+                tags = {}
+                for key, rawTag in rawTags.items():
+                    parser.feed(rawTag)
+                    parser.close()
+                    tags.update({key: parser.get()})
+                    parser = Parser()
+                return tags
+            elif type(rawTags) is list:
+                tags = []
+                for rawTag in rawTags:
+                    parser.feed(rawTag)
+                    parser.close()
+                    tags.append(parser.get())
+                    parser = Parser()
+                return tags
+            else:
+                raise Exception('unable to parse tags.')
         parser.feed(rawTags)
         parser.close()
         tags = parser.get()
         return tags
     
+    #   Parses the string 'rawArgs' to form a dict.
+    #   Returns dict containing args.
     def parseArgs(self, rawArgs):
         args = {}
         if rawArgs:
@@ -97,7 +120,16 @@ class Picker:
 
     def findElements(self, tree, tags):
         elements = []
-        if type(tags[0]) is not dict:
+        if type(tags) is dict:
+            for key, tag in tags.items():
+                if not elements:
+                    elements = self.findElements(tree, tag)
+                else:
+                    temp = []
+                    for old, new in zip(elements, self.findElements(tree, tag)):
+                        temp.append([old[0], new[0]])
+                    elements = temp
+        elif type(tags) is list and type(tags[0]) is not dict:
             for tag in tags:
                 if not elements:
                     elements = self.findElements(tree, tag)
@@ -182,7 +214,16 @@ class Picker:
             else:
                 data += self.findElements(tree, entry['tags'])
                 print('Page scraped.\n')
-        data.sort()
+        data = sorted(data, key = lambda row: row[0].lower())
+        if type(entry['tags']) is dict:
+            keys = []
+            for key in entry['tags']:
+                keys.append(key)
+                tag = entry['tags'][key][-1]['tag']
+                if tag == 'a' or tag == 'img' or tag == 'video':
+                    keys.append('URL')
+            # It simply won't accept plain lists ¯\_(ツ)_/¯
+            data = [(keys)] + data
         self.writeFile(entry['filename'], data)
 
     def scrapeAll(self):
