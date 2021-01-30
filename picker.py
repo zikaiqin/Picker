@@ -1,6 +1,7 @@
 from html.parser import HTMLParser
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
+import time, random
 import requests
 import csv
 import ast
@@ -17,9 +18,10 @@ class Parser(HTMLParser):
         return self.tags
 
 class Picker:
-    def __init__(self, filename = 'input.csv'):
-        self.queue = []
-        self.ifname = filename
+    def __init__(self, ifname = 'input.csv', oftype = '.csv', slow = False):
+        self.scrapeQueue = []
+        self.ifname, self.oftype = ifname, oftype
+        self.slow = slow
 
     def loadFile(self, filename = None):
         if filename is None:
@@ -43,7 +45,7 @@ class Picker:
                         entry = dict(zip(key, row))
                         entry['tags'] = self.parseTags(entry['tags'])
                         entry['args'] = self.parseArgs(entry['args'])
-                        self.queue.append(entry)
+                        self.scrapeQueue.append(entry)
         except Exception:
             raise
         except FileNotFoundError:
@@ -52,18 +54,25 @@ class Picker:
             file.close()
 
     def writeFile(self, filename, data):
-        # TODO: write to xlsx
+        filename = filename.strip()
+        for char in '|/\\':
+            filename = filename.replace(char, '-')
+        for char in '<>:"?*':
+            filename = filename.replace(char, '')
+
+        if not (filename.endswith('.csv') or filename.endswith('.xlsx')):
+            filename += self.oftype
         if filename.endswith('.xlsx'):
-            pass
-        if not filename.endswith('.csv'):
-            filename += '.csv'
-        with open(filename, 'a', encoding = 'utf-8', newline = '') as file:
-            writer = csv.writer(file)
-            try:
+            wb = Workbook(write_only = True)
+            ws = wb.create_sheet()
+            for row in data:
+                ws.append(row)
+            wb.save(filename)
+        elif filename.endswith('.csv'):
+            with open(filename, 'a', encoding = 'utf-8', newline = '') as file:
+                writer = csv.writer(file)
                 writer.writerows(data)
-            except:
-                print()
-        file.close()
+            file.close()
 
     #   Parses HTML tags using class Parser.
     #   Returns list of tags. Individual tags are dicts, with keys 'tag' and 'attrs'.
@@ -106,6 +115,8 @@ class Picker:
         return args
 
     def fetchTree(self, url):
+        if self.slow:
+            time.sleep(random.gauss(1, 0.5))
         headers = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0", "Accept-Encoding":"gzip, deflate", "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "DNT":"1","Connection":"close", "Upgrade-Insecure-Requests":"1"}
         try:
             r = requests.get(url, headers = headers, allow_redirects = False)
@@ -227,8 +238,8 @@ class Picker:
         self.writeFile(entry['filename'], data)
 
     def scrapeAll(self):
-        if not self.queue:
+        if not self.scrapeQueue:
             self.loadFile()
-        for entry in self.queue:
+        for entry in self.scrapeQueue:
             self.scrape(entry)
-        self.queue.clear()
+        self.scrapeQueue.clear()
