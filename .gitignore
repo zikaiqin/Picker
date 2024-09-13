@@ -1,6 +1,7 @@
 __pycache__/
+.venv/
+.idea/
 scraps/
 test/
-main.py
 *.csv
 .gitignore
